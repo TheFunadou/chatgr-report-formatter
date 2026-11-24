@@ -1,1 +1,135 @@
 @import "tailwindcss";
+@import "@fontsource-variable/ibm-plex-sans";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+@theme {
+  --font-sans: "IBM Plex Sans Variable", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-ink-950: #0b1216;
+  --color-ink-900: #101c22;
+  --color-ink-800: #1b2a31;
+  --color-ink-700: #2b3d45;
+  --color-ink-600: #455a63;
+  --color-ink-500: #647b84;
+
+  --color-paper: #f4f4f0;
+  --color-surface: #ffffff;
+  --color-line: #e3e3db;
+  --color-line-strong: #cbcbc1;
+
+  --color-signal-50: #edf5f1;
+  --color-signal-100: #d7eae1;
+  --color-signal-200: #b4d8c9;
+  --color-signal-300: #8ac1ad;
+  --color-signal-400: #4f9d85;
+  --color-signal-500: #1f7a5f;
+  --color-signal-600: #14624c;
+  --color-signal-700: #0f4d3c;
+
+  --radius-panel: 0.75rem;
+}
+
+@layer base {
+  html {
+    font-feature-settings: "ss01" on, "cv05" on;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-paper);
+    color: var(--color-ink-900);
+    font-family: var(--font-sans);
+  }
+
+  ::selection {
+    background-color: var(--color-signal-100);
+    color: var(--color-ink-950);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-signal-500);
+    outline-offset: 2px;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 0.45;
+    cursor: pointer;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: #c9c9c0;
+    border: 3px solid var(--color-paper);
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: #a9a9a0;
+  }
+}
+
+@layer utilities {
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hairline-grid {
+    background-image:
+      linear-gradient(to right, rgb(255 255 255 / 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(255 255 255 / 0.04) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+
+  .animate-rise {
+    animation: rise 0.32s cubic-bezier(0.2, 0.75, 0.25, 1) both;
+  }
+
+  .animate-overlay-in {
+    animation: overlay-in 0.18s ease-out both;
+  }
+
+  @keyframes overlay-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-rise {
+      animation: none;
+    }
+  }
+}

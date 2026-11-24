@@ -145,6 +145,69 @@ describe('HomeScreen (Phase 4 Import and Modes)', () => {
     expect(screen.queryByText('archivo_b.csv')).not.toBeInTheDocument()
   })
 
+  it('configures cleaning rules per file and keeps them in session', async () => {
+    registerMockCommand('pick_csv_files_dialog', () => ['C:/Datos/leads.csv'])
+    registerMockCommand('validate_csv_file', (args: any) => ({
+      path: args.path,
+      fileName: 'leads.csv',
+      fileSize: 2048,
+    }))
+    registerMockCommand('get_csv_preview', () => ({
+      path: 'C:/Datos/leads.csv',
+      fileName: 'leads.csv',
+      delimiter: ',',
+      headers: ['nombre', 'estatus'],
+      rows: [['Juan', 'nuevo']],
+      totalRows: 1,
+      warnings: [],
+    }))
+    registerMockCommand('apply_cleaning_rules', () => ({
+      totalRows: 1,
+      keptRows: 1,
+      excludedTotal: 0,
+      excludedByDate: 0,
+      excludedByInvalidDate: 0,
+      excludedByDuplicates: 0,
+      excludedByEmpty: 0,
+      excludedByInvalid: 0,
+      excludedByStatus: 0,
+      invalidDates: 0,
+      sampleCleanedRows: [['Juan', 'nuevo']],
+      excludedSamples: [],
+      warnings: [],
+      headers: ['nombre', 'estatus'],
+    }))
+
+    render(
+      <HomeScreen
+        exportPath="C:/Reportes_CRM"
+        onOpenSettings={vi.fn()}
+        statuses={[
+          {
+            id: 'status-nuevo',
+            dimension: 'status',
+            matchValue: 'nuevo',
+            displayName: 'Nuevo',
+            colorHex: '#38BDF8',
+            sortOrder: 1,
+          },
+        ]}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Seleccionar archivo CSV/i }))
+    await waitFor(() => expect(screen.getByText('leads.csv')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: /Reglas de limpieza de leads.csv/i }))
+    await waitFor(() => expect(screen.getByText('Reglas de limpieza')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: /Aplicar reglas/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Limpieza activa en leads.csv/i)).toBeInTheDocument()
+    })
+  })
+
   it('displays error message when validation fails', async () => {
     registerMockCommand('pick_csv_files_dialog', () => ['C:/Datos/corrupt.csv'])
     registerMockCommand('validate_csv_file', () => {

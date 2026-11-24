@@ -92,6 +92,23 @@ describe('App Flow & Persistence', () => {
     expect(screen.getAllByText('D:/Ventas/Excel').length).toBeGreaterThan(0)
   })
 
+  it('uses the cross-platform suggested folder instead of a hardcoded path', async () => {
+    registerMockCommand('get_app_settings', () => ({
+      defaultExportPath: '',
+      onboardingCompleted: true,
+    }))
+    registerMockCommand('get_suggested_export_folder', () => '/home/ana/Descargas/Reportes CRM')
+    registerMockCommand('get_dimension_categories', () => [...DEFAULT_STATUS_CATEGORIES])
+    registerMockCommand('list_source_files', () => [])
+
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getAllByText('/home/ana/Descargas/Reportes CRM').length).toBeGreaterThan(0)
+    })
+    expect(screen.queryByText('C:/Reportes_CRM')).not.toBeInTheDocument()
+  })
+
   it('allows navigating between sections and updating folder in settings', async () => {
     registerMockCommand('get_app_settings', () => ({
       defaultExportPath: 'D:/Ventas/Excel',

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import type { SourceFileItem } from '../../../types/sourceFiles'
 import {
   listSourceFilesApi,
@@ -16,18 +16,34 @@ import {
   Search,
   Plus,
   Trash2,
-  Edit2,
-  CheckCircle2,
-  AlertCircle,
+  Pencil,
   RefreshCw,
   FolderSearch,
   ArrowUpRight,
   HardDrive,
+  AlertTriangle,
+  CheckCircle2,
+  X,
 } from 'lucide-react'
+import { Button } from '../../../components/ui/button'
+import { Badge } from '../../../components/ui/badge'
+import { Input, Label } from '../../../components/ui/input'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../../components/ui/dialog'
+import { ConfirmDialog } from '../../../components/ui/confirm-dialog'
 
 interface LibraryScreenProps {
   onLoadFileToHome?: (file: { path: string; name: string; size: number }) => void
 }
+
+type Feedback = { tone: 'error' | 'success' | 'info'; message: string }
+type PendingRegister = { path: string; name: string }
 
 export const LibraryScreen: React.FC<LibraryScreenProps> = ({ onLoadFileToHome }) => {
   const [files, setFiles] = useState<SourceFileItem[]>([])
@@ -35,6 +51,12 @@ export const LibraryScreen: React.FC<LibraryScreenProps> = ({ onLoadFileToHome }
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editAliasValue, setEditAliasValue] = useState('')
+  const [pendingRegister, setPendingRegister] = useState<PendingRegister | null>(null)
+  const [aliasInput, setAliasInput] = useState('')
+  const [pendingDelete, setPendingDelete] = useState<SourceFileItem | null>(null)
+  const [confirmCleanMissing, setConfirmCleanMissing] = useState(false)
+  const [confirmClearAll, setConfirmClearAll] = useState(false)
+  const [feedback, setFeedback] = useState<Feedback | null>(null)
 
   const loadFiles = async (query?: string) => {
     setLoading(true)
@@ -43,6 +65,10 @@ export const LibraryScreen: React.FC<LibraryScreenProps> = ({ onLoadFileToHome }
       setFiles(items)
     } catch (err) {
       console.warn('Error loading source files from SQLite:', err)
+      setFeedback({
+        tone: 'error',
+        message: 'No se pudo leer la biblioteca local de archivos.',
+      })
     } finally {
       setLoading(false)
     }
@@ -53,17 +79,53 @@ export const LibraryScreen: React.FC<LibraryScreenProps> = ({ onLoadFileToHome }
   }, [searchQuery])
 
   const handleRegisterNewFile = async () => {
+    setFeedback(null)
     const paths = await pickCsvFilesDialog(false)
     if (!paths || paths.length === 0) return
 
     const path = paths[0]
     try {
       const meta = await validateCsvFileApi(path)
-      const alias = prompt(`Ingresa un alias para "${meta.fileName}" (opcional):`, '') || undefined
-      await registerSourceFileApi(path, meta.fileName, alias)
+      setPendingRegister({ path: meta.path, name: meta.fileName })
+      setAliasInput('')
+    } catch (err) {
+      setFeedback({
+        tone: 'error',
+        message:
+          typeof err === 'string'
+            ? err
+            : err instanceof Error
+              ? err.message
+              : 'Error al validar el archivo CSV.',
+      })
+    }
+  }
+
+  const handleConfirmRegister = async (withAlias: boolean) => {
+    if (!pendingRegister) return
+    try {
+      await registerSourceFileApi(
+        pendingRegister.path,
+        pendingRegister.name,
+        withAlias && aliasInput.trim() ? aliasInput.trim() : undefined
+      )
+      setPendingRegister(null)
+      setAliasInput('')
+      setFeedback({
+        tone: 'success',
+        message: `«${pendingRegister.name}» se agregó a la biblioteca.`,
+      })
       await loadFiles(searchQuery)
-    } catch (err: any) {
-      alert(typeof err === 'string' ? err : err?.message || 'Error al validar archivo CSV.')
+    } catch (err) {
+      setFeedback({
+        tone: 'error',
+        message:
+          typeof err === 'string'
+            ? err
+            : err instanceof Error
+              ? err.message
+              : 'No se pudo registrar el archivo.',
+      })
     }
   }
 
@@ -77,9 +139,18 @@ export const LibraryScreen: React.FC<LibraryScreenProps> = ({ onLoadFileToHome }
     try {
       await updateSourceAliasApi(id, trimmed.length > 0 ? trimmed : undefined)
       setEditingId(null)
+      setFeedback({ tone: 'success', message: 'Alias actualizado.' })
       await loadFiles(searchQuery)
     } catch (err) {
-      console.warn('Error updating alias:', err)
+      setFeedback({
+        tone: 'error',
+        message:
+          typeof err === 'string'
+            ? err
+            : err instanceof Error
+              ? err.message
+              : 'No se pudo actualizar el alias.',
+      })
     }
   }
 
@@ -91,174 +162,230 @@ export const LibraryScreen: React.FC<LibraryScreenProps> = ({ onLoadFileToHome }
     try {
       await validateCsvFileApi(newPath)
       await relinkSourceFileApi(id, newPath)
+      setFeedback({ tone: 'success', message: 'Archivo revinculado correctamente.' })
       await loadFiles(searchQuery)
-    } catch (err: any) {
-      alert(typeof err === 'string' ? err : err?.message || 'Error al revincular archivo.')
+    } catch (err) {
+      setFeedback({
+        tone: 'error',
+        message:
+          typeof err === 'string'
+            ? err
+            : err instanceof Error
+              ? err.message
+              : 'No se pudo revincular el archivo.',
+      })
     }
   }
 
-  const handleDelete = async (file: SourceFileItem) => {
-    const confirmed = confirm(
-      `¿Deseas eliminar la referencia de "${file.alias || file.originalFileName}" del catálogo?\n\n(Aviso: El archivo CSV original en tu disco NO será eliminado).`
-    )
-    if (!confirmed) return
-
+  const handleDelete = async () => {
+    if (!pendingDelete) return
     try {
-      await deleteSourceFileApi(file.id)
+      await deleteSourceFileApi(pendingDelete.id)
+      setPendingDelete(null)
+      setFeedback({
+        tone: 'success',
+        message: 'Referencia eliminada. El CSV original no se modificó.',
+      })
       await loadFiles(searchQuery)
     } catch (err) {
-      console.warn('Error deleting source file reference:', err)
+      setFeedback({
+        tone: 'error',
+        message: 'No se pudo eliminar la referencia del catálogo.',
+      })
     }
   }
 
   const handleCleanMissing = async () => {
-    const missingCount = files.filter((f) => !f.isAvailable).length
-    if (missingCount === 0) {
-      alert('Todos los archivos registrados están disponibles en el disco.')
-      return
-    }
-
-    if (confirm(`Se eliminarán ${missingCount} referencia(s) cuyos archivos no existen en el disco. ¿Continuar?`)) {
-      await cleanMissingSourcesApi()
+    try {
+      const removed = await cleanMissingSourcesApi()
+      setConfirmCleanMissing(false)
+      setFeedback({
+        tone: 'success',
+        message:
+          removed > 0
+            ? `${removed} referencia(s) huérfana(s) eliminadas.`
+            : 'No había referencias huérfanas.',
+      })
       await loadFiles(searchQuery)
+    } catch (err) {
+      setFeedback({ tone: 'error', message: 'No se pudieron limpiar las referencias.' })
     }
   }
 
   const handleClearAll = async () => {
-    if (files.length === 0) return
-
-    if (
-      confirm(
-        '¿Deseas vaciar todo el catálogo de fuentes registradas?\n\n(Aviso: Solo se eliminan las referencias en la base de datos local, no los archivos físicos).'
-      )
-    ) {
+    try {
       await clearSourceLibraryApi()
+      setConfirmClearAll(false)
+      setFeedback({ tone: 'success', message: 'Catálogo vaciado. Los archivos siguen en disco.' })
       await loadFiles()
+    } catch (err) {
+      setFeedback({ tone: 'error', message: 'No se pudo vaciar el catálogo.' })
     }
   }
 
   const formatFileSize = (bytes?: number | null) => {
-    if (!bytes) return '-'
+    if (!bytes) return '—'
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
+  const missingCount = files.filter((file) => !file.isAvailable).length
+
   return (
-    <div className="space-y-6">
-      {/* Search and Action Toolbar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
-        {/* Search Input */}
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-          <input
+    <div className="space-y-4">
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div className="relative w-full max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-ink-500" />
+          <Input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Buscar por nombre o alias..."
-            className="w-full rounded-lg border border-slate-300 bg-white pl-9 pr-4 py-2 text-xs text-slate-800 shadow-xs focus:border-emerald-500 focus:outline-hidden"
+            className="pl-9"
+            aria-label="Buscar archivos"
           />
         </div>
 
-        {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={handleRegisterNewFile}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
+          <Button variant="primary" onClick={handleRegisterNewFile}>
+            <Plus />
             Registrar CSV
-          </button>
-
-          <button
-            type="button"
-            onClick={handleCleanMissing}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 transition-colors"
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              if (missingCount === 0) {
+                setFeedback({
+                  tone: 'info',
+                  message: 'Todos los archivos registrados están disponibles en el disco.',
+                })
+                return
+              }
+              setConfirmCleanMissing(true)
+            }}
             title="Eliminar referencias de archivos que ya no existen físicamente"
           >
-            <RefreshCw className="h-3.5 w-3.5 text-slate-500" />
+            <RefreshCw />
             Limpiar huérfanos
-          </button>
-
+          </Button>
           {files.length > 0 && (
-            <button
-              type="button"
-              onClick={handleClearAll}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 shadow-xs hover:bg-red-50 transition-colors"
+            <Button
+              variant="danger"
+              onClick={() => setConfirmClearAll(true)}
               title="Vaciar todo el catálogo"
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 />
               Vaciar catálogo
-            </button>
+            </Button>
           )}
         </div>
       </div>
 
-      {/* Files Table / List */}
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
+      {feedback && (
+        <div
+          className={
+            feedback.tone === 'error'
+              ? 'flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800'
+              : feedback.tone === 'success'
+                ? 'flex items-start justify-between gap-3 rounded-lg border border-signal-200 bg-signal-50 p-3 text-xs text-signal-700'
+                : 'flex items-start justify-between gap-3 rounded-lg border border-line bg-surface p-3 text-xs text-ink-700'
+          }
+        >
+          <span className="flex items-start gap-2">
+            {feedback.tone === 'error' ? (
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+            ) : (
+              <CheckCircle2 className="mt-0.5 size-3.5 shrink-0" />
+            )}
+            <span className="leading-5">{feedback.message}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setFeedback(null)}
+            className="rounded p-0.5 opacity-60 transition-opacity hover:opacity-100"
+            aria-label="Cerrar aviso"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      )}
+
+      <div className="overflow-hidden rounded-xl border border-line bg-surface">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-[13px] font-semibold text-ink-900">Fuentes registradas</h3>
+            <Badge tone="neutral">{files.length}</Badge>
+            {missingCount > 0 && <Badge tone="warning">{missingCount} no encontradas</Badge>}
+          </div>
+          <p className="text-[11px] text-ink-500">
+            Solo metadatos y rutas; los CSV no se copian a la base de datos.
+          </p>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 select-none">
+            <thead className="select-none border-b border-line bg-paper/70 text-ink-600">
               <tr>
-                <th className="py-2.5 px-4 font-semibold">Fuente / Alias</th>
-                <th className="py-2.5 px-4 font-semibold">Ruta en disco</th>
-                <th className="py-2.5 px-4 font-semibold">Tamaño</th>
-                <th className="py-2.5 px-4 font-semibold text-center">Disponibilidad</th>
-                <th className="py-2.5 px-4 font-semibold text-right">Acciones</th>
+                <th className="px-4 py-2.5 font-semibold">Fuente / Alias</th>
+                <th className="px-4 py-2.5 font-semibold">Ruta en disco</th>
+                <th className="px-4 py-2.5 font-semibold">Tamaño</th>
+                <th className="px-4 py-2.5 text-center font-semibold">Disponibilidad</th>
+                <th className="px-4 py-2.5 text-right font-semibold">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-line">
               {files.map((file) => (
-                <tr key={file.id} className="hover:bg-slate-50/70">
-                  {/* File Name & Alias */}
-                  <td className="py-3 px-4">
+                <tr key={file.id} className="transition-colors hover:bg-paper/40">
+                  <td className="px-4 py-3">
                     <div className="flex items-start gap-2.5">
-                      <div className="p-1.5 rounded-md bg-slate-100 text-slate-500 mt-0.5 shrink-0">
-                        <FolderOpen className="h-4 w-4" />
-                      </div>
-                      <div className="space-y-0.5">
+                      <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md border border-line bg-paper text-ink-500">
+                        <FolderOpen className="size-3.5" />
+                      </span>
+                      <div className="min-w-0 space-y-0.5">
                         {editingId === file.id ? (
                           <div className="flex items-center gap-1.5">
-                            <input
+                            <Input
                               type="text"
                               value={editAliasValue}
-                              onChange={(e) => setEditAliasValue(e.target.value)}
+                              onChange={(event) => setEditAliasValue(event.target.value)}
                               placeholder="Escribe un alias..."
-                              className="rounded border border-emerald-500 px-2 py-0.5 text-xs font-semibold"
+                              className="h-7 w-44 text-xs"
                             />
-                            <button
-                              type="button"
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => handleSaveAlias(file.id)}
-                              className="text-xs text-emerald-700 font-semibold hover:underline"
+                              className="text-signal-700"
                             >
                               Guardar
-                            </button>
-                            <button
-                              type="button"
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => setEditingId(null)}
-                              className="text-xs text-slate-400 hover:text-slate-600"
                             >
                               Cancelar
-                            </button>
+                            </Button>
                           </div>
                         ) : (
                           <div className="flex items-center gap-1.5">
-                            <span className="font-semibold text-slate-800">
+                            <span className="truncate text-[13px] font-medium text-ink-900">
                               {file.alias || file.originalFileName}
                             </span>
                             <button
                               type="button"
                               onClick={() => handleStartEditAlias(file)}
-                              className="text-slate-400 hover:text-slate-600 p-0.5"
+                              className="rounded p-0.5 text-ink-500 transition-colors hover:text-ink-900"
                               title="Editar alias"
+                              aria-label={`Editar alias de ${file.originalFileName}`}
                             >
-                              <Edit2 className="h-3 w-3" />
+                              <Pencil className="size-3" />
                             </button>
                           </div>
                         )}
                         {file.alias && (
-                          <p className="text-[11px] text-slate-400">
+                          <p className="text-[11px] text-ink-500">
                             Archivo: {file.originalFileName}
                           </p>
                         )}
@@ -266,51 +393,47 @@ export const LibraryScreen: React.FC<LibraryScreenProps> = ({ onLoadFileToHome }
                     </div>
                   </td>
 
-                  {/* Route */}
-                  <td className="py-3 px-4 font-mono text-[11px] text-slate-600 max-w-xs truncate" title={file.sourceRoute}>
+                  <td
+                    className="max-w-xs truncate px-4 py-3 font-mono text-[11px] text-ink-600"
+                    title={file.sourceRoute}
+                  >
                     {file.sourceRoute}
                   </td>
 
-                  {/* Size */}
-                  <td className="py-3 px-4 text-slate-500 font-mono text-[11px]">
+                  <td className="tnum px-4 py-3 font-mono text-[11px] text-ink-500">
                     {formatFileSize(file.fileSize)}
                   </td>
 
-                  {/* Availability Badge */}
-                  <td className="py-3 px-4 text-center">
+                  <td className="px-4 py-3 text-center">
                     {file.isAvailable ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                      <Badge tone="signal" dot>
                         Disponible
-                      </span>
+                      </Badge>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-red-50 text-red-700 border border-red-200">
-                        <AlertCircle className="h-3 w-3 text-red-600" />
+                      <Badge tone="danger" dot>
                         Archivo no encontrado
-                      </span>
+                      </Badge>
                     )}
                   </td>
 
-                  {/* Actions */}
-                  <td className="py-3 px-4 text-right">
-                    <div className="inline-flex items-center gap-1">
-                      {/* If file is missing, offer Relink */}
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
                       {!file.isAvailable && (
-                        <button
-                          type="button"
+                        <Button
+                          variant="secondary"
+                          size="sm"
                           onClick={() => handleRelink(file.id)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors"
                           title="Localizar archivo en otra ubicación"
                         >
-                          <FolderSearch className="h-3.5 w-3.5" />
+                          <FolderSearch />
                           Localizar archivo
-                        </button>
+                        </Button>
                       )}
 
-                      {/* If available, offer Load into Home */}
                       {file.isAvailable && onLoadFileToHome && (
-                        <button
-                          type="button"
+                        <Button
+                          variant="secondary"
+                          size="sm"
                           onClick={() =>
                             onLoadFileToHome({
                               path: file.sourceRoute,
@@ -318,23 +441,24 @@ export const LibraryScreen: React.FC<LibraryScreenProps> = ({ onLoadFileToHome }
                               size: file.fileSize || 0,
                             })
                           }
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors"
                           title="Cargar archivo en la pantalla de inicio"
+                          className="border-signal-200 text-signal-700 hover:bg-signal-50"
                         >
-                          <ArrowUpRight className="h-3.5 w-3.5" />
+                          <ArrowUpRight />
                           Cargar a Inicio
-                        </button>
+                        </Button>
                       )}
 
-                      {/* Delete reference */}
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(file)}
-                        className="p-1.5 text-slate-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors ml-1"
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setPendingDelete(file)}
+                        className="hover:bg-red-50 hover:text-red-600"
                         title="Eliminar del catálogo"
+                        aria-label={`Eliminar referencia de ${file.originalFileName}`}
                       >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                        <Trash2 />
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -342,13 +466,15 @@ export const LibraryScreen: React.FC<LibraryScreenProps> = ({ onLoadFileToHome }
 
               {!loading && files.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-400">
-                    <HardDrive className="mx-auto h-8 w-8 text-slate-300 mb-2" />
-                    <p className="font-semibold text-slate-600">No hay archivos en la biblioteca</p>
-                    <p className="text-xs text-slate-400 mt-0.5">
+                  <td colSpan={5} className="px-4 py-14 text-center">
+                    <HardDrive className="mx-auto mb-2 size-7 text-ink-500/40" />
+                    <p className="text-[13px] font-medium text-ink-700">
+                      No hay archivos en la biblioteca
+                    </p>
+                    <p className="mx-auto mt-1 max-w-sm text-[11px] leading-4 text-ink-500">
                       {searchQuery
                         ? 'No se encontraron resultados para tu búsqueda.'
-                        : 'Puedes registrar archivos CSV manualmente con el botón "Registrar CSV".'}
+                        : 'Registra un CSV para conservar su ruta y metadatos entre sesiones.'}
                     </p>
                   </td>
                 </tr>
@@ -357,6 +483,75 @@ export const LibraryScreen: React.FC<LibraryScreenProps> = ({ onLoadFileToHome }
           </table>
         </div>
       </div>
+
+      {/* Register alias dialog */}
+      <Dialog
+        open={pendingRegister !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingRegister(null)
+        }}
+      >
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>Registrar fuente</DialogTitle>
+            <DialogDescription>
+              {pendingRegister?.name} se guardará en la biblioteca local con su ruta actual.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 px-5 py-4">
+            <Label htmlFor="source-alias">Alias (opcional)</Label>
+            <Input
+              id="source-alias"
+              autoFocus
+              value={aliasInput}
+              onChange={(event) => setAliasInput(event.target.value)}
+              placeholder="ej. Leads noviembre"
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') handleConfirmRegister(true)
+              }}
+            />
+            <p className="text-[11px] leading-4 text-ink-500">
+              Un alias facilita encontrarla después. Puedes cambiarlo con el lápiz de la tabla.
+            </p>
+          </div>
+          <DialogFooter className="justify-end">
+            <Button variant="ghost" onClick={() => handleConfirmRegister(false)}>
+              Registrar sin alias
+            </Button>
+            <Button variant="primary" onClick={() => handleConfirmRegister(true)}>
+              Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Eliminar referencia"
+        description={`Se quitará «${pendingDelete?.alias || pendingDelete?.originalFileName || ''}» del catálogo.\n\nEl archivo CSV original en tu disco no se elimina.`}
+        confirmLabel="Eliminar referencia"
+        onConfirm={handleDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
+
+      <ConfirmDialog
+        open={confirmCleanMissing}
+        title="Limpiar referencias huérfanas"
+        description={`Se eliminarán ${missingCount} referencia(s) cuyos archivos ya no existen en el disco. Los archivos físicos no se tocan.`}
+        confirmLabel="Limpiar referencias"
+        tone="primary"
+        onConfirm={handleCleanMissing}
+        onCancel={() => setConfirmCleanMissing(false)}
+      />
+
+      <ConfirmDialog
+        open={confirmClearAll}
+        title="Vaciar catálogo"
+        description={'Se eliminarán todas las referencias de la base de datos local.\n\nLos archivos CSV y los reportes XLSX permanecen intactos en el disco.'}
+        confirmLabel="Vaciar catálogo"
+        onConfirm={handleClearAll}
+        onCancel={() => setConfirmClearAll(false)}
+      />
     </div>
   )
 }

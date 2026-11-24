@@ -8,7 +8,7 @@ use commands::dimensions::{
     get_dimension_categories, reset_dimension_categories, save_dimension_categories,
 };
 use commands::settings::{
-    get_app_settings, get_suggested_export_folder, save_app_settings,
+    get_app_settings, get_suggested_export_folder, save_app_settings, validate_export_folder,
 };
 use commands::source_files::{
     clean_missing_sources, clear_source_library, delete_source_file, list_source_files,
@@ -53,6 +53,7 @@ pub fn run() {
             get_app_settings,
             save_app_settings,
             get_suggested_export_folder,
+            validate_export_folder,
             get_dimension_categories,
             save_dimension_categories,
             reset_dimension_categories,

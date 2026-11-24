@@ -9,7 +9,9 @@ import {
 import { StepExportFolder } from './StepExportFolder'
 import { StepDimensionEditor } from './StepDimensionEditor'
 import { StepSummary } from './StepSummary'
-import { ChevronLeft, ChevronRight, Check } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Check, FileSpreadsheet } from 'lucide-react'
+import { Button } from '../../../components/ui/button'
+import { cn } from '../../../lib/utils'
 
 interface OnboardingWizardProps {
   initialExportPath?: string
@@ -23,7 +25,7 @@ interface OnboardingWizardProps {
 }
 
 export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
-  initialExportPath = 'C:/Reportes_CRM',
+  initialExportPath = '',
   onComplete,
 }) => {
   const [currentStep, setCurrentStep] = useState(1)
@@ -34,188 +36,186 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
   const [mediums, setMediums] = useState<DimensionCategory[]>(DEFAULT_MEDIUM_CATEGORIES)
 
   const stepsList = [
-    { number: 1, label: 'Carpeta de salida' },
-    { number: 2, label: 'Estatus comerciales' },
-    { number: 3, label: 'Niveles de prioridad' },
-    { number: 4, label: 'Plataformas de origen' },
-    { number: 5, label: 'Medios de captación' },
-    { number: 6, label: 'Confirmación' },
+    { number: 1, label: 'Carpeta de salida', hint: 'Dónde se guardan los XLSX' },
+    { number: 2, label: 'Estatus comerciales', hint: 'Venta y seguimiento' },
+    { number: 3, label: 'Niveles de prioridad', hint: 'Urgencia del lead' },
+    { number: 4, label: 'Plataformas de origen', hint: 'Canal de llegada' },
+    { number: 5, label: 'Medios de captación', hint: 'Tipo de campaña' },
+    { number: 6, label: 'Confirmación', hint: 'Resumen y entrada' },
   ]
 
   const handleNext = () => {
     if (currentStep < 6) {
       setCurrentStep((prev) => prev + 1)
     } else {
-      onComplete({
-        exportPath,
-        statuses,
-        priorities,
-        sources,
-        mediums,
-      })
+      onComplete({ exportPath, statuses, priorities, sources, mediums })
     }
   }
 
   const handleBack = () => {
-    if (currentStep > 1) {
-      setCurrentStep((prev) => prev - 1)
-    }
+    if (currentStep > 1) setCurrentStep((prev) => prev - 1)
   }
 
   return (
-    <div className="min-h-screen w-screen flex flex-col bg-slate-50 font-sans text-slate-900">
-      {/* Top Wizard Header */}
-      <header className="border-b border-slate-200 bg-white px-6 py-4 shadow-xs">
-        <div className="mx-auto max-w-5xl flex items-center justify-between">
+    <div className="flex min-h-screen w-screen flex-col bg-paper font-sans text-ink-900">
+      <header className="flex h-16 shrink-0 items-center justify-between border-b border-line bg-surface px-6">
+        <div className="flex items-center gap-2.5">
+          <span className="flex size-8 items-center justify-center rounded-md bg-signal-600 text-white">
+            <FileSpreadsheet className="size-[18px]" strokeWidth={1.9} />
+          </span>
           <div>
-            <h1 className="text-base font-semibold text-slate-800">
-              Asistente de Configuración Inicial
-            </h1>
-            <p className="text-xs text-slate-500">
-              Personaliza las categorías de tu CRM para generar reportes adaptados a tu negocio.
+            <p className="text-[13px] font-semibold leading-tight tracking-[-0.01em]">
+              Reportes CRM
             </p>
+            <p className="text-[11px] leading-tight text-ink-500">Configuración inicial</p>
           </div>
-          <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+        </div>
+
+        <div className="flex items-center gap-4">
+          <p className="hidden text-xs text-ink-500 sm:block">
+            Asistente de Configuración Inicial
+          </p>
+          <span className="rounded-md border border-line bg-paper px-2 py-1 text-[11px] font-medium text-ink-600">
             Paso {currentStep} de 6
           </span>
         </div>
-
-        {/* Step Indicator Bar */}
-        <div className="mx-auto max-w-5xl mt-4 flex items-center justify-between">
-          {stepsList.map((step) => {
-            const isCompleted = step.number < currentStep
-            const isCurrent = step.number === currentStep
-            return (
-              <div
-                key={step.number}
-                className="flex items-center gap-2 text-xs font-medium"
-              >
-                <div
-                  className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold transition-all ${
-                    isCompleted
-                      ? 'bg-emerald-600 text-white'
-                      : isCurrent
-                      ? 'bg-emerald-100 text-emerald-800 border-2 border-emerald-600'
-                      : 'bg-slate-200 text-slate-500'
-                  }`}
-                >
-                  {isCompleted ? <Check className="h-3.5 w-3.5" /> : step.number}
-                </div>
-                <span
-                  className={`hidden sm:inline ${
-                    isCurrent
-                      ? 'text-slate-900 font-semibold'
-                      : isCompleted
-                      ? 'text-slate-700'
-                      : 'text-slate-400'
-                  }`}
-                >
-                  {step.label}
-                </span>
-              </div>
-            )
-          })}
-        </div>
       </header>
 
-      {/* Main Step Content */}
-      <main className="flex-1 overflow-y-auto p-6 flex justify-center">
-        <div className="w-full max-w-4xl py-2">
-          {currentStep === 1 && (
-            <StepExportFolder exportPath={exportPath} onSelectPath={setExportPath} />
-          )}
+      <div className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-8 px-6 py-8 lg:grid-cols-[250px_1fr]">
+        {/* Steps rail */}
+        <nav aria-label="Pasos de configuración" className="lg:pt-2">
+          <ol className="flex gap-1 overflow-x-auto lg:flex-col lg:gap-0.5 lg:overflow-visible">
+            {stepsList.map((step) => {
+              const isCompleted = step.number < currentStep
+              const isCurrent = step.number === currentStep
+              return (
+                <li key={step.number} className="shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(step.number)}
+                    className={cn(
+                      'flex w-full items-start gap-3 rounded-lg px-2.5 py-2.5 text-left transition-colors',
+                      isCurrent ? 'bg-surface' : 'hover:bg-surface/60'
+                    )}
+                    aria-current={isCurrent ? 'step' : undefined}
+                  >
+                    <span
+                      className={cn(
+                        'tnum mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold',
+                        isCompleted
+                          ? 'border-signal-600 bg-signal-600 text-white'
+                          : isCurrent
+                            ? 'border-signal-600 bg-signal-50 text-signal-700'
+                            : 'border-line-strong bg-transparent text-ink-500'
+                      )}
+                    >
+                      {isCompleted ? <Check className="size-3.5" strokeWidth={2.5} /> : step.number}
+                    </span>
+                    <span className="hidden min-w-0 lg:block">
+                      <span
+                        className={cn(
+                          'block text-[12.5px] font-medium leading-tight',
+                          isCurrent ? 'text-ink-900' : 'text-ink-600'
+                        )}
+                      >
+                        {step.label}
+                      </span>
+                      <span className="mt-0.5 block text-[10.5px] leading-tight text-ink-500">
+                        {step.hint}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ol>
+        </nav>
 
-          {currentStep === 2 && (
-            <StepDimensionEditor
-              title="Estatus Comerciales"
-              description="Define los estados de tus prospectos, sus colores y marca cuáles representan venta o conversión para calcular la tasa de éxito."
-              dimension="status"
-              categories={statuses}
-              onChangeCategories={setStatuses}
-              onResetDefaults={() => setStatuses(DEFAULT_STATUS_CATEGORIES)}
-              supportsConversion={true}
-            />
-          )}
+        {/* Step content */}
+        <main className="min-w-0">
+          <div className="min-h-full rounded-xl border border-line bg-surface p-6 sm:p-8">
+            {currentStep === 1 && (
+              <StepExportFolder exportPath={exportPath} onSelectPath={setExportPath} />
+            )}
 
-          {currentStep === 3 && (
-            <StepDimensionEditor
-              title="Niveles de Prioridad"
-              description="Establece los niveles de prioridad de tus prospectos para el análisis de urgencia comercial."
-              dimension="priority"
-              categories={priorities}
-              onChangeCategories={setPriorities}
-              onResetDefaults={() => setPriorities(DEFAULT_PRIORITY_CATEGORIES)}
-            />
-          )}
+            {currentStep === 2 && (
+              <StepDimensionEditor
+                title="Estatus Comerciales"
+                description="Define los estados de tus prospectos, sus colores y marca cuáles representan venta o conversión para calcular la tasa de éxito."
+                dimension="status"
+                categories={statuses}
+                onChangeCategories={setStatuses}
+                onResetDefaults={() => setStatuses(DEFAULT_STATUS_CATEGORIES)}
+                supportsConversion={true}
+              />
+            )}
 
-          {currentStep === 4 && (
-            <StepDimensionEditor
-              title="Plataformas de Origen"
-              description="Configura los canales de procedencia del lead (WhatsApp, Facebook, Instagram, Web, etc.)."
-              dimension="source"
-              categories={sources}
-              onChangeCategories={setSources}
-              onResetDefaults={() => setSources(DEFAULT_SOURCE_CATEGORIES)}
-            />
-          )}
+            {currentStep === 3 && (
+              <StepDimensionEditor
+                title="Niveles de Prioridad"
+                description="Establece los niveles de prioridad de tus prospectos para el análisis de urgencia comercial."
+                dimension="priority"
+                categories={priorities}
+                onChangeCategories={setPriorities}
+                onResetDefaults={() => setPriorities(DEFAULT_PRIORITY_CATEGORIES)}
+              />
+            )}
 
-          {currentStep === 5 && (
-            <StepDimensionEditor
-              title="Medios de Captación"
-              description="Gestiona los medios comerciales (Orgánico, Campaña publicitaria, Referido, Prospección)."
-              dimension="medium"
-              categories={mediums}
-              onChangeCategories={setMediums}
-              onResetDefaults={() => setMediums(DEFAULT_MEDIUM_CATEGORIES)}
-            />
-          )}
+            {currentStep === 4 && (
+              <StepDimensionEditor
+                title="Plataformas de Origen"
+                description="Configura los canales de procedencia del lead (WhatsApp, Facebook, Instagram, Web, etc.)."
+                dimension="source"
+                categories={sources}
+                onChangeCategories={setSources}
+                onResetDefaults={() => setSources(DEFAULT_SOURCE_CATEGORIES)}
+              />
+            )}
 
-          {currentStep === 6 && (
-            <StepSummary
-              exportPath={exportPath}
-              statusCategories={statuses}
-              priorityCategories={priorities}
-              sourceCategories={sources}
-              mediumCategories={mediums}
-            />
-          )}
-        </div>
-      </main>
+            {currentStep === 5 && (
+              <StepDimensionEditor
+                title="Medios de Captación"
+                description="Gestiona los medios comerciales (Orgánico, Campaña publicitaria, Referido, Prospección)."
+                dimension="medium"
+                categories={mediums}
+                onChangeCategories={setMediums}
+                onResetDefaults={() => setMediums(DEFAULT_MEDIUM_CATEGORIES)}
+              />
+            )}
 
-      {/* Footer Navigation Buttons */}
-      <footer className="border-t border-slate-200 bg-white px-6 py-4 shadow-xs">
-        <div className="mx-auto max-w-4xl flex items-center justify-between">
-          <button
-            type="button"
-            onClick={handleBack}
-            disabled={currentStep === 1}
-            className={`inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 transition-colors ${
-              currentStep === 1
-                ? 'opacity-40 cursor-not-allowed bg-slate-100'
-                : 'hover:bg-slate-50'
-            }`}
-          >
-            <ChevronLeft className="h-4 w-4" />
+            {currentStep === 6 && (
+              <StepSummary
+                exportPath={exportPath}
+                statusCategories={statuses}
+                priorityCategories={priorities}
+                sourceCategories={sources}
+                mediumCategories={mediums}
+              />
+            )}
+          </div>
+        </main>
+      </div>
+
+      <footer className="border-t border-line bg-surface px-6 py-3.5">
+        <div className="mx-auto flex max-w-6xl items-center justify-between">
+          <Button variant="secondary" onClick={handleBack} disabled={currentStep === 1}>
+            <ChevronLeft />
             Anterior
-          </button>
+          </Button>
 
-          <button
-            type="button"
-            onClick={handleNext}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 transition-colors"
-          >
+          <Button variant="primary" onClick={handleNext}>
             {currentStep === 6 ? (
               <>
-                <Check className="h-4 w-4" />
+                <Check />
                 Finalizar y entrar a Inicio
               </>
             ) : (
               <>
                 Siguiente
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight />
               </>
             )}
-          </button>
+          </Button>
         </div>
       </footer>
     </div>

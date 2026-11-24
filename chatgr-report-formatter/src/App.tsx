@@ -31,7 +31,7 @@ export function App() {
     name: string
     size: number
   } | null>(null)
-  const [exportPath, setExportPath] = useState('C:/Reportes_CRM')
+  const [exportPath, setExportPath] = useState('')
   const [statuses, setStatuses] = useState<DimensionCategory[]>(DEFAULT_STATUS_CATEGORIES)
   const [priorities, setPriorities] = useState<DimensionCategory[]>(DEFAULT_PRIORITY_CATEGORIES)
   const [sources, setSources] = useState<DimensionCategory[]>(DEFAULT_SOURCE_CATEGORIES)
@@ -60,7 +60,7 @@ export function App() {
           if (settings.defaultExportPath) {
             setExportPath(settings.defaultExportPath)
           } else {
-            const suggested = await getSuggestedExportFolderApi().catch(() => 'C:/Reportes_CRM')
+            const suggested = await getSuggestedExportFolderApi().catch(() => '')
             setExportPath(suggested)
           }
           setHasCompletedOnboarding(settings.onboardingCompleted)
@@ -181,8 +181,11 @@ export function App() {
 
   if (loading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-slate-50 text-slate-600 text-xs font-medium">
-        Cargando configuración...
+      <div className="flex h-screen w-screen items-center justify-center bg-paper">
+        <div className="flex items-center gap-3 text-xs font-medium text-ink-500">
+          <span className="size-4 animate-spin rounded-full border-2 border-line-strong border-t-signal-600" />
+          Cargando configuración...
+        </div>
       </div>
     )
   }
@@ -209,6 +212,7 @@ export function App() {
           exportPath={exportPath}
           onOpenSettings={() => setActiveSection('settings')}
           initialFile={loadedFileFromLibrary}
+          statuses={statuses}
         />
       )}
 

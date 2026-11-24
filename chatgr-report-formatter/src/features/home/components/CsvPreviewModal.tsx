@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import type { CsvPreviewData } from '../../../types/csv'
 import { getCsvPreviewApi } from '../../../lib/tauri'
 import {
@@ -7,13 +7,29 @@ import {
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
-  Filter,
+  SlidersHorizontal,
 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '../../../components/ui/dialog'
+import { Button } from '../../../components/ui/button'
+import { Badge } from '../../../components/ui/badge'
+import { cn } from '../../../lib/utils'
 
 interface CsvPreviewModalProps {
   filePath: string
   fileName: string
   onClose: () => void
+}
+
+const DELIMITER_LABELS: Record<string, string> = {
+  ',': 'Coma (,)',
+  ';': 'Punto y coma (;)',
+  '\t': 'Tabulador (\\t)',
+  '|': 'Barra (|)',
 }
 
 export const CsvPreviewModal: React.FC<CsvPreviewModalProps> = ({
@@ -28,16 +44,22 @@ export const CsvPreviewModal: React.FC<CsvPreviewModalProps> = ({
   const [page, setPage] = useState(1)
   const pageSize = 10
 
-  const loadPreview = async (delim?: string) => {
+  const loadPreview = async (delimiter?: string) => {
     setLoading(true)
     setError(null)
     try {
-      const data = await getCsvPreviewApi(filePath, delim, 100)
+      const data = await getCsvPreviewApi(filePath, delimiter, 100)
       setPreviewData(data)
       setCurrentDelimiter(data.delimiter)
       setPage(1)
-    } catch (err: any) {
-      setError(typeof err === 'string' ? err : err?.message || 'Error al generar vista previa.')
+    } catch (err) {
+      setError(
+        typeof err === 'string'
+          ? err
+          : err instanceof Error
+            ? err.message
+            : 'Error al generar la vista previa.'
+      )
     } finally {
       setLoading(false)
     }
@@ -45,73 +67,67 @@ export const CsvPreviewModal: React.FC<CsvPreviewModalProps> = ({
 
   useEffect(() => {
     loadPreview()
+    // The preview only reloads when the source file changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filePath])
 
-  const handleDelimiterChange = (newDelim: string) => {
-    setCurrentDelimiter(newDelim)
-    loadPreview(newDelim)
-  }
-
-  const delimiterLabels: Record<string, string> = {
-    ',': 'Coma (,)',
-    ';': 'Punto y coma (;)',
-    '\t': 'Tabulador (\\t)',
-    '|': 'Barra (|)',
-  }
-
-  const rows = previewData?.rows || []
+  const rows = previewData?.rows ?? []
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
   const paginatedRows = rows.slice((page - 1) * pageSize, page * pageSize)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 font-sans text-slate-900">
-      <div className="flex h-[90vh] w-full max-w-5xl flex-col rounded-2xl bg-white shadow-2xl overflow-hidden border border-slate-200">
-        {/* Modal Header */}
-        <header className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
-              <FileSpreadsheet className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
-                Vista previa: <span className="font-mono text-emerald-700">{fileName}</span>
-              </h2>
-              <p className="text-xs text-slate-500">
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent size="full" hideClose className="h-[calc(100vh-3rem)]">
+        <header className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-signal-50 text-signal-700">
+              <FileSpreadsheet className="size-[18px]" strokeWidth={1.8} />
+            </span>
+            <div className="min-w-0">
+              <DialogTitle className="flex items-center gap-2">
+                Vista previa:
+                <span className="truncate font-mono text-[13px] text-signal-700">{fileName}</span>
+              </DialogTitle>
+              <DialogDescription className="mt-0.5">
                 {previewData
                   ? `${previewData.totalRows} filas detectadas en total (mostrando muestra de ${rows.length})`
-                  : 'Cargando archivo...'}
-              </p>
+                  : 'Cargando archivo…'}
+              </DialogDescription>
             </div>
           </div>
 
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors"
             title="Cerrar vista previa"
+            aria-label="Cerrar vista previa"
           >
-            <X className="h-5 w-5" />
-          </button>
+            <X />
+          </Button>
         </header>
 
-        {/* Toolbar: Delimiter Selector & Stats */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 py-2.5 bg-white text-xs">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-600 flex items-center gap-1">
-              <Filter className="h-3.5 w-3.5 text-slate-400" />
-              Delimitador:
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-paper/50 px-5 py-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-ink-600">
+              <SlidersHorizontal className="size-3.5 text-ink-500" />
+              Delimitador
             </span>
-            <div className="flex items-center gap-1">
-              {Object.entries(delimiterLabels).map(([delim, label]) => (
+            <div className="flex flex-wrap items-center gap-1">
+              {Object.entries(DELIMITER_LABELS).map(([delimiter, label]) => (
                 <button
-                  key={delim}
+                  key={delimiter}
                   type="button"
-                  onClick={() => handleDelimiterChange(delim)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                    currentDelimiter === delim
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
+                  onClick={() => {
+                    setCurrentDelimiter(delimiter)
+                    loadPreview(delimiter)
+                  }}
+                  className={cn(
+                    'rounded-md border px-2 py-1 text-[11px] font-medium transition-colors',
+                    currentDelimiter === delimiter
+                      ? 'border-signal-600 bg-signal-600 text-white'
+                      : 'border-line bg-surface text-ink-600 hover:border-line-strong'
+                  )}
                 >
                   {label}
                 </button>
@@ -120,78 +136,75 @@ export const CsvPreviewModal: React.FC<CsvPreviewModalProps> = ({
           </div>
 
           {previewData && (
-            <span className="text-xs text-slate-500 font-mono">
-              {previewData.headers.length} columnas reconocidas
-            </span>
+            <Badge tone="neutral">{previewData.headers.length} columnas reconocidas</Badge>
           )}
         </div>
 
-        {/* Warnings Banner if any */}
         {previewData && previewData.warnings.length > 0 && (
-          <div className="bg-amber-50 px-6 py-2.5 border-b border-amber-200 text-xs text-amber-900 space-y-1">
+          <div className="space-y-1 border-b border-amber-200 bg-amber-50 px-5 py-2.5 text-[11px] leading-4 text-amber-900">
             <div className="flex items-center gap-1.5 font-semibold text-amber-800">
-              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-              <span>Avisos de procesamiento:</span>
+              <AlertTriangle className="size-3.5 shrink-0" />
+              Avisos de procesamiento:
             </div>
-            <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-800 pl-1">
-              {previewData.warnings.map((w, i) => (
-                <li key={i}>{w}</li>
+            <ul className="list-inside list-disc space-y-0.5 pl-1">
+              {previewData.warnings.map((warning, index) => (
+                <li key={index}>{warning}</li>
               ))}
             </ul>
           </div>
         )}
 
-        {/* Main Content Area */}
-        <div className="flex-1 overflow-auto p-6 bg-slate-50/50">
+        <div className="min-h-0 flex-1 overflow-auto bg-paper/40 p-5">
           {loading && (
-            <div className="flex h-full items-center justify-center text-xs text-slate-500 font-medium">
-              Procesando y extrayendo vista previa...
+            <div className="flex h-full items-center justify-center gap-2 text-xs font-medium text-ink-500">
+              <span className="size-3.5 animate-spin rounded-full border-2 border-line-strong border-t-signal-600" />
+              Extrayendo vista previa…
             </div>
           )}
 
           {error && (
-            <div className="flex h-full flex-col items-center justify-center text-center p-6">
-              <AlertTriangle className="h-10 w-10 text-red-500 mb-2" />
+            <div className="flex h-full flex-col items-center justify-center gap-1 p-6 text-center">
+              <AlertTriangle className="size-8 text-red-500" />
               <p className="text-sm font-semibold text-red-800">No se pudo leer el archivo CSV</p>
-              <p className="text-xs text-red-600 max-w-md mt-1">{error}</p>
+              <p className="max-w-md text-xs text-red-600">{error}</p>
             </div>
           )}
 
           {!loading && !error && previewData && (
-            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs">
+            <div className="overflow-hidden rounded-lg border border-line bg-surface">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-100 text-slate-700 border-b border-slate-200 select-none">
+                <table className="w-full border-collapse text-left">
+                  <thead className="sticky top-0 select-none bg-paper">
                     <tr>
-                      <th className="py-2.5 px-3 font-semibold text-slate-400 w-12 text-center">
+                      <th className="w-12 border-b border-line px-3 py-2 text-center text-[10px] font-semibold text-ink-500">
                         #
                       </th>
-                      {previewData.headers.map((h, i) => (
+                      {previewData.headers.map((header, index) => (
                         <th
-                          key={i}
-                          className="py-2.5 px-3 font-semibold whitespace-nowrap border-r border-slate-200/60 last:border-r-0"
+                          key={index}
+                          className="whitespace-nowrap border-b border-l border-line px-3 py-2 text-[11px] font-semibold text-ink-700"
                         >
-                          {h || <span className="italic text-slate-400">Sin encabezado</span>}
+                          {header || <span className="italic text-ink-500">Sin encabezado</span>}
                         </th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
-                    {paginatedRows.map((row, rowIdx) => {
-                      const actualIndex = (page - 1) * pageSize + rowIdx + 1
+                  <tbody className="divide-y divide-line">
+                    {paginatedRows.map((row, rowIndex) => {
+                      const rowNumber = (page - 1) * pageSize + rowIndex + 1
                       return (
-                        <tr key={rowIdx} className="hover:bg-slate-50/80">
-                          <td className="py-2 px-3 text-center text-slate-400 select-none bg-slate-50/30">
-                            {actualIndex}
+                        <tr key={rowIndex} className="transition-colors hover:bg-paper/50">
+                          <td className="select-none bg-paper/30 px-3 py-1.5 text-center font-mono text-[10px] text-ink-500">
+                            {rowNumber}
                           </td>
-                          {previewData.headers.map((_, colIdx) => (
+                          {previewData.headers.map((_, columnIndex) => (
                             <td
-                              key={colIdx}
-                              className="py-2 px-3 whitespace-nowrap border-r border-slate-100 last:border-r-0 text-slate-700 truncate max-w-xs"
-                              title={row[colIdx] || ''}
+                              key={columnIndex}
+                              className="max-w-64 truncate whitespace-nowrap border-l border-line/70 px-3 py-1.5 font-mono text-[11px] text-ink-700"
+                              title={row[columnIndex] || ''}
                             >
-                              {row[colIdx] ?? (
-                                <span className="italic text-slate-300">vacío</span>
+                              {row[columnIndex] || (
+                                <span className="italic text-ink-500/50">vacío</span>
                               )}
                             </td>
                           ))}
@@ -203,7 +216,7 @@ export const CsvPreviewModal: React.FC<CsvPreviewModalProps> = ({
                       <tr>
                         <td
                           colSpan={previewData.headers.length + 1}
-                          className="py-8 text-center text-slate-400 font-sans"
+                          className="px-3 py-10 text-center text-xs text-ink-500"
                         >
                           No hay filas de datos disponibles.
                         </td>
@@ -216,34 +229,33 @@ export const CsvPreviewModal: React.FC<CsvPreviewModalProps> = ({
           )}
         </div>
 
-        {/* Footer with Pagination Controls */}
-        <footer className="flex items-center justify-between border-t border-slate-200 px-6 py-3 bg-white text-xs">
-          <span className="text-slate-500">
+        <footer className="flex items-center justify-between border-t border-line bg-surface px-5 py-3 text-[11px] text-ink-500">
+          <span className="tnum">
             Página {page} de {totalPages} ({rows.length} filas en muestra)
           </span>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
             >
-              <ChevronLeft className="h-3.5 w-3.5" />
+              <ChevronLeft />
               Anterior
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
               disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
             >
               Siguiente
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
+              <ChevronRight />
+            </Button>
           </div>
         </footer>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

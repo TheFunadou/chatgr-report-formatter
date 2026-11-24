@@ -9,6 +9,21 @@ interface AppLayoutProps {
   children: React.ReactNode
 }
 
+const sectionTitles: Record<NavSection, { title: string; subtitle: string }> = {
+  home: {
+    title: 'Importación y Procesamiento',
+    subtitle: 'Convierte tus CSV comerciales en reportes Excel ejecutables',
+  },
+  files: {
+    title: 'Biblioteca de Archivos',
+    subtitle: 'Fuentes recientes y revinculación local de datos',
+  },
+  settings: {
+    title: 'Configuración de Preferencias',
+    subtitle: 'Ruta de salida y personalización de estatus, prioridades y orígenes',
+  },
+}
+
 export const AppLayout: React.FC<AppLayoutProps> = ({
   activeSection,
   onSelectSection,
@@ -16,26 +31,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   children,
 }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
-
-  const sectionTitles: Record<NavSection, { title: string; subtitle: string }> = {
-    home: {
-      title: 'Importación y Procesamiento',
-      subtitle: 'Convierte tus CSV comerciales en reportes Excel ejecutables',
-    },
-    files: {
-      title: 'Biblioteca de Archivos',
-      subtitle: 'Fuentes recientes y revinculación local de datos',
-    },
-    settings: {
-      title: 'Configuración de Preferencias',
-      subtitle: 'Ruta de salida y personalización de estatus, prioridades y orígenes',
-    },
-  }
-
   const currentInfo = sectionTitles[activeSection]
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 font-sans text-slate-900 antialiased">
+    <div className="flex h-screen w-screen overflow-hidden bg-paper font-sans text-ink-900">
       <AppSidebar
         activeSection={activeSection}
         onSelectSection={onSelectSection}
@@ -43,29 +42,31 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
       />
 
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Header Bar */}
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6">
-          <div className="flex flex-col">
-            <h1 className="text-base font-semibold text-slate-800 leading-tight">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="flex h-16 shrink-0 items-center justify-between gap-6 border-b border-line bg-surface px-7">
+          <div className="min-w-0">
+            <h1 className="truncate text-[15px] font-semibold tracking-[-0.01em] text-ink-900">
               {currentInfo.title}
             </h1>
-            <p className="text-xs text-slate-500">{currentInfo.subtitle}</p>
+            <p className="truncate text-xs text-ink-500">{currentInfo.subtitle}</p>
           </div>
 
-          {/* Active Export Path Badge */}
-          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600 max-w-sm truncate shadow-xs">
-            <FolderCheck className="h-4 w-4 text-emerald-600 shrink-0" />
-            <span className="font-medium text-slate-500">Salida:</span>
-            <span className="truncate text-slate-700" title={exportPath}>
-              {exportPath || 'No configurada'}
-            </span>
+          <div className="flex max-w-[46%] items-center gap-2.5 rounded-lg border border-line bg-paper px-3 py-1.5">
+            <FolderCheck className="size-4 shrink-0 text-signal-600" strokeWidth={1.8} />
+            <div className="min-w-0">
+              <p className="text-[10px] font-medium leading-3 text-ink-500">Guardando en</p>
+              <p
+                className="truncate font-mono text-[11px] leading-4 text-ink-800"
+                title={exportPath}
+              >
+                {exportPath || 'Sin carpeta configurada'}
+              </p>
+            </div>
           </div>
         </header>
 
-        {/* Main Content View */}
-        <main className="flex-1 overflow-y-auto p-6">
-          <div className="mx-auto max-w-6xl">{children}</div>
+        <main className="flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-6xl px-7 py-7">{children}</div>
         </main>
       </div>
     </div>

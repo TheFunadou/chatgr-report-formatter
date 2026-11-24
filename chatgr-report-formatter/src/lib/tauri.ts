@@ -65,8 +65,12 @@ export async function pickFolderDialog(defaultPath?: string): Promise<string | n
     }
   }
 
-  // Fallback for web / tests
-  return prompt('Ingresa la ruta de exportación:', defaultPath || '')
+  // The native picker is a desktop capability. Never ask the user to type a
+  // raw filesystem path: surface the limitation instead.
+  console.warn(
+    'La selección de carpetas requiere la aplicación de escritorio. No hay diálogo nativo disponible.'
+  )
+  return null
 }
 
 export async function pickCsvFilesDialog(multiple: boolean): Promise<string[]> {
@@ -106,6 +110,10 @@ export async function saveAppSettingsApi(settings: AppSettings): Promise<void> {
 
 export async function getSuggestedExportFolderApi(): Promise<string> {
   return await invokeCommand<string>('get_suggested_export_folder')
+}
+
+export async function validateExportFolderApi(path: string): Promise<void> {
+  return await invokeCommand<void>('validate_export_folder', { path })
 }
 
 export async function getDimensionCategoriesApi(
